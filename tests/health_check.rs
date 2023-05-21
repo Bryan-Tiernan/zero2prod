@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::net::TcpListener;
 
 #[tokio::test]
@@ -24,4 +23,50 @@ fn spawn_app() -> String {
     // Launch server as a background task
     let _ = tokio::spawn(server);
     format!("http://127.0.0.1:{}", port)
+}
+
+#[tokio::test]
+async fn subscribe_returns_a_200_for_valid_form_data(){
+    let app_address = spawn_app();
+    let client = reqwest::Client::new();
+
+    let body = "name=bryan%20tiernan&email=bryantiernan%40gmail.com";
+    let response = client
+        .post(&format!("{}/subscriptions", &app_address))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body)
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    assert_eq!(200, response.status().as_u16());
+}
+
+#[tokio::test]
+async fn subscribe_returns_400_for_missing_form_data(){
+    let app_address = spawn_app();
+    let client = reqwest::Client::new();
+    let test_cases = vec![
+        ("name=bryan%20tiernan", "no email"),
+        ("email=bryantiernan%40gmail.com", "no name"),
+        (" ", "nothing")
+    ];
+
+    for (invalid_body, error_message) in test_cases {
+        let response = client
+            .post(&format!("{}/subscriptions", &app_address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(invalid_body)
+            .send()
+            .await
+            .expect("Failed to execute request.");
+
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            "The API did not fail with 400 Bad Request when the payload was {}.",
+            error_message
+        );
+    }
+
 }
